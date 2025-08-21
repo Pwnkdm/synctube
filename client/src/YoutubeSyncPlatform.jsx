@@ -622,7 +622,12 @@ const YoutubeSyncPlatform = () => {
       <header className="bg-gray-800 p-4 border-b border-gray-700">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold text-red-500">SyncTube</h1>
+            <h1
+              style={{ fontFamily: "Oswald" }}
+              className="text-2xl font-bold text-red-500"
+            >
+              BingeSync
+            </h1>
             <span className="text-sm text-gray-400">Room: {currentRoom}</span>
           </div>
 
