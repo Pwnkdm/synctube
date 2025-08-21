@@ -1,4 +1,4 @@
-// socket/socketHandlers.js
+// socket/socketHandlers.js - Updated with host control logic
 const Message = require("../models/Message");
 const Room = require("../models/Room");
 const VideoSync = require("../models/VideoSync");
@@ -26,19 +26,28 @@ module.exports = (io, socket) => {
         updatedAt: -1,
       });
 
-      // Populate users with usernames
-      const populatedRoom = await Room.findOne({ roomId }).populate(
-        "users",
-        "username"
-      );
+      // Populate users with usernames and host info
+      const populatedRoom = await Room.findOne({ roomId }).populate([
+        { path: "users", select: "username" },
+        { path: "host", select: "username" },
+      ]);
+
+      // Check if current user is host
+      const isHost = populatedRoom.host._id.toString() === socket.user.id;
 
       // Emit room joined with current state
       socket.emit("room-joined", {
         roomId,
+        isHost,
+        hostInfo: {
+          userId: populatedRoom.host._id,
+          username: populatedRoom.host.username,
+        },
         connectedUsers: populatedRoom.users.map((u) => ({
           userId: u._id,
           username: u.username,
-          voiceConnected: false, // Default to false, will be updated by voice-toggle
+          voiceConnected: false,
+          isHost: u._id.toString() === populatedRoom.host._id.toString(),
         })),
         currentVideo: currentVideo
           ? {
@@ -60,6 +69,9 @@ module.exports = (io, socket) => {
               isPlaying: false,
               currentTime: 0,
             },
+        roomSettings: {
+          allowGuestControl: room.settings.allowGuestControl || false,
+        },
       });
 
       // Notify others that a new user joined
@@ -67,6 +79,7 @@ module.exports = (io, socket) => {
         userId: socket.user.id,
         username: socket.user.username,
         voiceConnected: false,
+        isHost: isHost,
       });
     } catch (err) {
       console.error("joinRoom error:", err);
@@ -74,7 +87,7 @@ module.exports = (io, socket) => {
     }
   });
 
-  // Video Actions (load, play, pause, seek)
+  // Video Actions (load, play, pause, seek) - NOW WITH HOST CONTROL
   socket.on("video-action", async (data) => {
     const { roomId, action, videoData, playState } = data;
 
@@ -82,6 +95,18 @@ module.exports = (io, socket) => {
       const room = await Room.findOne({ roomId });
       if (!room || !room.users.includes(socket.user.id)) {
         socket.emit("error", { message: "Not authorized for this room" });
+        return;
+      }
+
+      // Check if user has video control permissions
+      const isHost = room.host.toString() === socket.user.id;
+      const canControl = isHost || room.settings.allowGuestControl;
+
+      if (!canControl) {
+        socket.emit("error", {
+          message: "Only the host can control video playback",
+          code: "HOST_CONTROL_REQUIRED",
+        });
         return;
       }
 
@@ -152,11 +177,126 @@ module.exports = (io, socket) => {
             }
           : { isPlaying: false, currentTime: 0 },
         syncedBy: socket.user.username,
+        isHostAction: isHost,
         timestamp: new Date(),
       });
     } catch (err) {
       console.error("Video action error:", err);
       socket.emit("error", { message: "Failed to sync video" });
+    }
+  });
+
+  // Transfer Host (only current host can do this)
+  socket.on("transfer-host", async ({ roomId, newHostId }) => {
+    try {
+      const room = await Room.findOne({ roomId }).populate("users", "username");
+      if (
+        !room ||
+        !room.users.find((u) => u._id.toString() === socket.user.id)
+      ) {
+        socket.emit("error", { message: "Not authorized for this room" });
+        return;
+      }
+
+      // Check if current user is host
+      if (room.host.toString() !== socket.user.id) {
+        socket.emit("error", {
+          message: "Only the host can transfer host privileges",
+        });
+        return;
+      }
+
+      // Check if new host is in the room
+      const newHost = room.users.find((u) => u._id.toString() === newHostId);
+      if (!newHost) {
+        socket.emit("error", { message: "User not found in room" });
+        return;
+      }
+
+      // Update host
+      room.host = newHostId;
+      await room.save();
+
+      // Send system message
+      const systemMessage = new Message({
+        room: roomId,
+        sender: socket.user.id,
+        content: `${socket.user.username} transferred host privileges to ${newHost.username}`,
+        messageType: "system",
+      });
+      await systemMessage.save();
+
+      // Notify all users
+      io.to(roomId).emit("host-transferred", {
+        oldHost: {
+          userId: socket.user.id,
+          username: socket.user.username,
+        },
+        newHost: {
+          userId: newHostId,
+          username: newHost.username,
+        },
+      });
+
+      io.to(roomId).emit("new-message", {
+        sender: "System",
+        content: systemMessage.content,
+        timestamp: systemMessage.createdAt,
+        messageType: "system",
+      });
+    } catch (err) {
+      console.error("Transfer host error:", err);
+      socket.emit("error", { message: "Failed to transfer host" });
+    }
+  });
+
+  // Toggle Guest Control (only host can do this)
+  socket.on("toggle-guest-control", async ({ roomId, allowGuestControl }) => {
+    try {
+      const room = await Room.findOne({ roomId });
+      if (!room || !room.users.includes(socket.user.id)) {
+        socket.emit("error", { message: "Not authorized for this room" });
+        return;
+      }
+
+      // Check if current user is host
+      if (room.host.toString() !== socket.user.id) {
+        socket.emit("error", {
+          message: "Only the host can change room settings",
+        });
+        return;
+      }
+
+      // Update setting
+      room.settings.allowGuestControl = allowGuestControl;
+      await room.save();
+
+      // Send system message
+      const systemMessage = new Message({
+        room: roomId,
+        sender: socket.user.id,
+        content: `${socket.user.username} ${
+          allowGuestControl ? "enabled" : "disabled"
+        } guest video control`,
+        messageType: "system",
+      });
+      await systemMessage.save();
+
+      // Notify all users
+      io.to(roomId).emit("room-settings-updated", {
+        allowGuestControl,
+        updatedBy: socket.user.username,
+      });
+
+      io.to(roomId).emit("new-message", {
+        sender: "System",
+        content: systemMessage.content,
+        timestamp: systemMessage.createdAt,
+        messageType: "system",
+      });
+    } catch (err) {
+      console.error("Toggle guest control error:", err);
+      socket.emit("error", { message: "Failed to update room settings" });
     }
   });
 

@@ -1,13 +1,59 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <title>BingeSync</title>
+    <style>
+      /* Custom slider styling */
+      .slider::-webkit-slider-thumb {
+        appearance: none;
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #ef4444;
+        cursor: pointer;
+        border: 2px solid #fff;
+        box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+      }
+
+      .slider::-moz-range-thumb {
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #ef4444;
+        cursor: pointer;
+        border: 2px solid #fff;
+        box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+      }
+
+      .slider::-webkit-slider-track {
+        height: 8px;
+        border-radius: 4px;
+      }
+
+      .slider::-moz-range-track {
+        height: 8px;
+        border-radius: 4px;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <script>
+      const originalTitle = document.title;
+      const awayTitle = "👀 Hey! Come back to BingeSync";
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          document.title = awayTitle;
+        } else {
+          document.title = originalTitle;
+        }
+      });
+    </script>
   </body>
 </html>
