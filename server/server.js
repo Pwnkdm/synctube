@@ -8,6 +8,7 @@ const authRoutes = require("./routes/authRoutes");
 const roomRoutes = require("./routes/roomRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const socketAuth = require("./middleware/socketAuth");
+const authMiddleware = require("./middleware/authMiddleware");
 require("dotenv").config();
 
 const app = express();
@@ -20,7 +21,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
-app.use("/api/rooms", roomRoutes);
+app.use("/api/rooms", authMiddleware, roomRoutes);
 app.use("/api/messages", messageRoutes);
 
 io.use(socketAuth);

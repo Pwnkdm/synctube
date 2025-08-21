@@ -18,6 +18,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import io from "socket.io-client";
+import { Switch } from "./common/SwitchBtn";
 
 const API_BASE = import.meta.env.VITE_APP_BASE_URL || "http://localhost:5000";
 
@@ -40,6 +41,7 @@ const YoutubeSyncPlatform = () => {
     isPrivate: false,
   });
   const [joinRoomId, setJoinRoomId] = useState("");
+  const [toggleRoom, setToggleRoom] = useState(false);
 
   // Video states
   const [isPlaying, setIsPlaying] = useState(false);
@@ -75,10 +77,12 @@ const YoutubeSyncPlatform = () => {
       });
 
       socketRef.current.on("connect", () => {
-        console.log("Connected to server");
+        console.log("Socket connected to server");
       });
 
       socketRef.current.on("room-joined", (data) => {
+        console.log(data, "room-joined");
+
         setCurrentRoom(data.roomId);
         setConnectedUsers(data.connectedUsers);
         if (data.currentVideo.videoId) {
@@ -92,6 +96,8 @@ const YoutubeSyncPlatform = () => {
       });
 
       socketRef.current.on("user-joined", (data) => {
+        console.log(data, "poiuuih");
+
         setConnectedUsers((prev) => [
           ...prev,
           {
@@ -119,7 +125,11 @@ const YoutubeSyncPlatform = () => {
         }
       });
 
+      console.log(chatMessages, "poiuyy");
+
       socketRef.current.on("new-message", (message) => {
+        console.log(message, "socket message");
+
         setChatMessages((prev) => [
           ...prev,
           {
@@ -244,10 +254,12 @@ const YoutubeSyncPlatform = () => {
         method: "POST",
         body: JSON.stringify(roomData),
       });
+      const roomId = response.room.roomId;
 
       // Join the created room
       if (socketRef.current) {
-        socketRef.current.emit("join-room", response.roomId);
+        socketRef.current.emit("join-room", roomId);
+        setCurrentRoom(roomId);
       }
 
       setRoomData({ name: "", isPrivate: false });
@@ -372,7 +384,12 @@ const YoutubeSyncPlatform = () => {
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-red-500 mb-2">SyncTube</h1>
+            <h1
+              style={{ fontFamily: "Oswald" }}
+              className="text-3xl font-bold text-red-500 mb-2"
+            >
+              BingeSync
+            </h1>
             <p className="text-gray-400">Watch YouTube together with friends</p>
           </div>
 
@@ -469,7 +486,12 @@ const YoutubeSyncPlatform = () => {
       <div className="min-h-screen bg-gray-900 text-white">
         <header className="bg-gray-800 p-4 border-b border-gray-700">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-red-500">SyncTube</h1>
+            <h1
+              className="text-2xl font-bold text-red-500"
+              style={{ fontFamily: "Oswald" }}
+            >
+              BingeSync
+            </h1>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-400">
                 Welcome, {user.username}
@@ -491,71 +513,100 @@ const YoutubeSyncPlatform = () => {
             </div>
           )}
 
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Create Room */}
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <UserPlus className="mr-2" size={20} />
-                Create New Room
-              </h2>
+          <div className="min-h-screen bg-gray-900 text-white p-8">
+            <div className="max-w-4xl mx-auto">
+              <div className="grid md:grid-cols-1 gap-8">
+                {!toggleRoom ? (
+                  <div className="bg-gray-800 p-6 rounded-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center">
+                        <UserPlus className="mr-2" size={20} />
+                        <span className="text-xl font-semibold">
+                          Create New Room
+                        </span>
+                      </div>
+                      <Switch
+                        checked={toggleRoom}
+                        onChange={() => setToggleRoom(!toggleRoom)}
+                        size="sm"
+                        label="Toggle between create and join room"
+                        showLabels={false}
+                      />
+                    </div>
 
-              <form onSubmit={createRoom} className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Room name"
-                  value={roomData.name}
-                  onChange={(e) =>
-                    setRoomData({ ...roomData, name: e.target.value })
-                  }
-                  className="w-full bg-gray-700 text-white px-4 py-3 rounded border border-gray-600 focus:border-red-500 focus:outline-none"
-                  required
-                />
+                    <form onSubmit={createRoom} className="space-y-4">
+                      <input
+                        type="text"
+                        placeholder="Room name"
+                        value={roomData.name}
+                        onChange={(e) =>
+                          setRoomData({ ...roomData, name: e.target.value })
+                        }
+                        className="w-full bg-gray-700 text-white px-4 py-3 rounded border border-gray-600 focus:border-blue-300 focus:outline-none"
+                        required
+                      />
 
-                <label className="flex items-center space-x-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={roomData.isPrivate}
-                    onChange={(e) =>
-                      setRoomData({ ...roomData, isPrivate: e.target.checked })
-                    }
-                    className="rounded"
-                  />
-                  <span>Make room private</span>
-                </label>
+                      <label className="flex items-center space-x-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={roomData.isPrivate}
+                          onChange={(e) =>
+                            setRoomData({
+                              ...roomData,
+                              isPrivate: e.target.checked,
+                            })
+                          }
+                          className="rounded"
+                        />
+                        <span>Make room private</span>
+                      </label>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 py-3 rounded font-semibold transition-colors"
-                >
-                  {loading ? "Creating..." : "Create Room"}
-                </button>
-              </form>
-            </div>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-blue-400 hover:bg-blue-600 disabled:bg-gray-600 py-3 rounded font-semibold transition-colors"
+                      >
+                        {loading ? "Creating..." : "Create Room"}
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="bg-gray-800 p-6 rounded-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center">
+                        <Users className="mr-2" size={20} />
+                        <span className="text-xl font-semibold">
+                          Join Existing Room
+                        </span>
+                      </div>
+                      <Switch
+                        checked={toggleRoom}
+                        onChange={() => setToggleRoom(!toggleRoom)}
+                        size="sm"
+                        label="Toggle between create and join room"
+                        showLabels={false}
+                      />
+                    </div>
 
-            {/* Join Room */}
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Users className="mr-2" size={20} />
-                Join Existing Room
-              </h2>
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        placeholder="Enter room ID"
+                        value={joinRoomId}
+                        onChange={(e) => setJoinRoomId(e.target.value)}
+                        className="w-full bg-gray-700 text-white px-4 py-3 rounded border border-gray-600 focus:border-blue-300 focus:outline-none"
+                      />
 
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Enter room ID"
-                  value={joinRoomId}
-                  onChange={(e) => setJoinRoomId(e.target.value)}
-                  className="w-full bg-gray-700 text-white px-4 py-3 rounded border border-gray-600 focus:border-red-500 focus:outline-none"
-                />
-
-                <button
-                  onClick={() => joinRoom(joinRoomId)}
-                  disabled={!joinRoomId.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 py-3 rounded font-semibold transition-colors"
-                >
-                  Join Room
-                </button>
+                      <button
+                        onClick={() => joinRoom(joinRoomId)}
+                        disabled={!joinRoomId.trim()}
+                        className="w-full bg-blue-400 hover:bg-blue-600 disabled:bg-gray-600 py-3 rounded font-semibold transition-colors"
+                      >
+                        Join Room
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -798,7 +849,7 @@ const YoutubeSyncPlatform = () => {
                                 : "text-blue-400"
                             }`}
                           >
-                            {msg.username}
+                            {msg.sender}
                           </span>
                           <span className="text-gray-500 text-xs">
                             {msg.timestamp}
@@ -811,7 +862,7 @@ const YoutubeSyncPlatform = () => {
                               : "text-gray-200"
                           }`}
                         >
-                          {msg.message}
+                          {msg.content}
                         </p>
                       </div>
                     ))}
